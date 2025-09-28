@@ -1,0 +1,44 @@
+/* UAV Dashboard CSS - 遵循Linux工具设计美学：简洁、实用、功能优先 */
+
+UAVDashboard {
+    layout: vertical;
+    background: black;
+    color: white;
+}
+
+Header {
+    height: 3;
+    background: darkblue;
+    color: white;
+    text-align: center;
+}
+
+DataTable {
+    height: 1fr;
+    border: solid green;
+    background: black;
+    color: white;
+}
+
+DataTable > .datatable--header {
+    background: darkblue;
+    color: white;
+}
+
+DataTable > .datatable--row {
+    background: black;
+    color: white;
+}
+
+DataTable > .datatable--row:hover {
+    background: darkgreen;
+    color: white;
+}
+
+/* 简洁无装饰，聚焦数据 */
+Footer {
+    height: 1;
+    background: darkblue;
+    color: gray;
+    text-align: center;
+}
