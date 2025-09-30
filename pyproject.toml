@@ -34,6 +34,7 @@ dependencies = [
     "platformdirs==4.4.0",
     "Pygments==2.19.2",
     "typing_extensions==4.15.0",
+    "tomli==2.0.1; python_version < '3.11'",
 ]
 
 [project.scripts]
@@ -43,9 +44,9 @@ uav-dashboard = "uav_tui_dashboard.cli:main"
 "uav_tui_dashboard.ui" = ["*.css"]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/uav-tui-dashboard"
-Repository = "https://github.com/yourusername/uav-tui-dashboard.git"
-Issues = "https://github.com/yourusername/uav-tui-dashboard/issues"
+Homepage = "https://github.com/xmu795/uav-tui-dashboard"
+Repository = "https://github.com/xmu795/uav-tui-dashboard.git"
+Issues = "https://github.com/xmu795/uav-tui-dashboard/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]

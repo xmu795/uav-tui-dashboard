@@ -20,6 +20,8 @@ class UAVDashboardApp(App):
     """Textual application that renders UAV telemetry."""
 
     CSS_PATH = Path(__file__).with_name("dashboard.css")
+    FIELD_COLUMN_KEY = "field"
+    VALUE_COLUMN_KEY = "value"
 
     def __init__(self, data_source: DataSource, *, poll_interval: float = 1.0) -> None:
         super().__init__()
@@ -36,7 +38,8 @@ class UAVDashboardApp(App):
     async def on_mount(self) -> None:
         await self._data_source.start()
         table = self.query_one("#status_table", DataTable)
-        table.add_columns("Field", "Value")
+        table.add_column("Field", key=self.FIELD_COLUMN_KEY)
+        table.add_column("Value", key=self.VALUE_COLUMN_KEY)
         self._add_rows(table)
         self._status_timer = self.set_interval(self._poll_interval, self._tick, name="status_poll")
 
@@ -67,14 +70,14 @@ class UAVDashboardApp(App):
 
     def _update_table(self, status: UAVStatus) -> None:
         table = self.query_one("#status_table", DataTable)
-        table.update_cell("position_x", "Value", f"{status.position[0]:.2f}")
-        table.update_cell("position_y", "Value", f"{status.position[1]:.2f}")
-        table.update_cell("position_z", "Value", f"{status.position[2]:.2f}")
-        table.update_cell("roll", "Value", f"{status.orientation[0]:.2f}")
-        table.update_cell("pitch", "Value", f"{status.orientation[1]:.2f}")
-        table.update_cell("yaw", "Value", f"{status.orientation[2]:.2f}")
-        table.update_cell("battery_level", "Value", f"{status.battery_level:.1f}%")
-        table.update_cell("voltage", "Value", f"{status.voltage:.2f}V")
+        table.update_cell("position_x", self.VALUE_COLUMN_KEY, f"{status.position[0]:.2f}")
+        table.update_cell("position_y", self.VALUE_COLUMN_KEY, f"{status.position[1]:.2f}")
+        table.update_cell("position_z", self.VALUE_COLUMN_KEY, f"{status.position[2]:.2f}")
+        table.update_cell("roll", self.VALUE_COLUMN_KEY, f"{status.orientation[0]:.2f}")
+        table.update_cell("pitch", self.VALUE_COLUMN_KEY, f"{status.orientation[1]:.2f}")
+        table.update_cell("yaw", self.VALUE_COLUMN_KEY, f"{status.orientation[2]:.2f}")
+        table.update_cell("battery_level", self.VALUE_COLUMN_KEY, f"{status.battery_level:.1f}%")
+        table.update_cell("voltage", self.VALUE_COLUMN_KEY, f"{status.voltage:.2f}V")
 
 
 __all__ = ["UAVDashboardApp"]
