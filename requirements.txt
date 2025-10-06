@@ -9,3 +9,6 @@ platformdirs==4.4.0
 Pygments==2.19.2
 typing_extensions==4.15.0
 tomli==2.0.1
+
+# Optional ROS2 runtime dependency (install via ROS 2 distribution when running in ROS mode)
+rclpy>=1.0.0

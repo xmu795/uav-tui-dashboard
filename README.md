@@ -36,6 +36,14 @@
    pip install -e .
    ```
 
+4. （可选）启用 ROS2 支持：
+   - 确保已安装 ROS 2 Humble 及以上版本，并在相同终端中 source 对应的环境（如 `source /opt/ros/humble/setup.bash`）。
+   - 通过 pip 安装额外依赖：
+     ```bash
+     pip install -e ".[ros2]"
+     ```
+     或者直接使用系统包管理器安装 `rclpy`（例如 `sudo apt install ros-humble-rclpy`）。
+
 ## 运行
 
 ### 模拟模式（默认）
@@ -49,6 +57,26 @@ uav-dashboard
 ```bash
 python -m uav_tui_dashboard
 ```
+
+### ROS2 模式
+
+```bash
+uav-dashboard --mode ros2
+```
+
+默认情况下，仪表盘会订阅下列主题：
+
+- `/uav/odometry`，消息类型 `nav_msgs/msg/Odometry`
+- `/uav/battery`，消息类型 `sensor_msgs/msg/BatteryState`
+
+可使用以下命令行参数进行自定义：
+
+- `--ros-namespace`：节点命名空间
+- `--ros-odometry-topic` 与 `--ros-odometry-type`：里程计主题与消息类型
+- `--ros-battery-topic` 与 `--ros-battery-type`：电池主题与消息类型（留空主题可禁用订阅）
+- `--ros-arg`：传递给 `rclpy.init()` 的额外参数，可多次使用
+
+> 📘 **深入了解数据流与扩展方式**：请阅读 [`docs/ros2_integration.md`](docs/ros2_integration.md)，了解订阅结构、消息解析策略、缓存机制及常见问题解答。
 
 ### 命令行参数
 

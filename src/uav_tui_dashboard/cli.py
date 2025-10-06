@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Optional, Sequence
 
-from .core import DataSource, SimDataSource
+from .core import DataSource, Ros2DataSource, SimDataSource
 from .logging_config import LoggingSetupResult, configure_logging
 from .shutdown import GracefulShutdown
 from .ui import UAVDashboardApp
@@ -107,7 +107,7 @@ def _create_parser() -> argparse.ArgumentParser:
         "--mode",
         choices=("sim", "ros2"),
         default="sim",
-        help="Select the telemetry source. 'ros2' is a placeholder for future work.",
+        help="选择遥测数据源模式：'sim' 为内置模拟器，'ros2' 为订阅 ROS2 主题。",
     )
     parser.add_argument(
         "--poll-interval",
@@ -135,15 +135,59 @@ def _create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="关闭控制台日志输出，仅写入文件。",
     )
+    parser.add_argument(
+        "--ros-namespace",
+        help="ROS2 数据源使用的命名空间，默认使用全局命名空间。",
+    )
+    parser.add_argument(
+        "--ros-odometry-topic",
+        default="/uav/odometry",
+        help="提供位置与姿态信息的里程计主题 (nav_msgs/msg/Odometry)。",
+    )
+    parser.add_argument(
+        "--ros-battery-topic",
+        default="/uav/battery",
+        help="提供电池信息的主题 (sensor_msgs/msg/BatteryState)。传入空字符串以禁用。",
+    )
+    parser.add_argument(
+        "--ros-odometry-type",
+        default="nav_msgs.msg.Odometry",
+        help="里程计主题的消息类型，使用完整的模块路径 (如 nav_msgs.msg.Odometry)。",
+    )
+    parser.add_argument(
+        "--ros-battery-type",
+        default="sensor_msgs.msg.BatteryState",
+        help="电池主题的消息类型，使用完整的模块路径。",
+    )
+    parser.add_argument(
+        "--ros-arg",
+        action="append",
+        dest="ros_args",
+        help="传递给 rclpy.init() 的额外参数，可多次使用。",
+    )
     return parser
 
 
-def _make_data_source(mode: str) -> DataSource:
-    if mode == "sim":
+def _make_data_source(parser: argparse.ArgumentParser, args: argparse.Namespace) -> DataSource:
+    if args.mode == "sim":
         return SimDataSource()
-    if mode == "ros2":
-        raise NotImplementedError("ROS2 mode is not yet implemented")
-    raise ValueError(f"Unknown mode: {mode}")
+    if args.mode == "ros2":
+        battery_topic = args.ros_battery_topic or None
+        try:
+            return Ros2DataSource(
+                namespace=args.ros_namespace,
+                odometry_topic=args.ros_odometry_topic,
+                battery_topic=battery_topic,
+                odometry_msg_type=args.ros_odometry_type,
+                battery_msg_type=args.ros_battery_type,
+                ros_args=args.ros_args,
+            )
+        except RuntimeError as exc:
+            parser.error(str(exc))
+        except ValueError as exc:
+            parser.error(f"ROS2 数据源配置无效: {exc}")
+
+    raise ValueError(f"Unknown mode: {args.mode}")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
@@ -151,7 +195,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     args = parser.parse_args(argv)
     _configure_logging_from_args(parser, args)
     _install_global_exception_hook()
-    data_source = _make_data_source(args.mode)
+    data_source = _make_data_source(parser, args)
     app = UAVDashboardApp(data_source=data_source, poll_interval=args.poll_interval)
 
     with GracefulShutdown() as shutdown:
