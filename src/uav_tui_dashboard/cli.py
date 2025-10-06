@@ -16,6 +16,7 @@ from .core import (
     SimDataSource,
     parse_px4_battery_status,
     parse_px4_pose_ned,
+    parse_px4_vehicle_status,
 )
 from .logging_config import LoggingSetupResult, configure_logging
 from .shutdown import GracefulShutdown
@@ -58,6 +59,8 @@ DEFAULT_ODOMETRY_TOPIC = "/uav/odometry"
 DEFAULT_BATTERY_TOPIC = "/uav/battery"
 DEFAULT_ODOMETRY_TYPE = "nav_msgs.msg.Odometry"
 DEFAULT_BATTERY_TYPE = "sensor_msgs.msg.BatteryState"
+DEFAULT_VEHICLE_STATUS_TOPIC = ""
+DEFAULT_VEHICLE_STATUS_TYPE = "px4_interface.msg.VehicleStatus"
 
 ROS_PROFILE_PX4_INTERFACE = "px4_interface"
 
@@ -69,6 +72,9 @@ ROS_PROFILES: dict[str, dict[str, Any]] = {
         "battery_type": "px4_interface.msg.BatteryStatus",
         "odometry_parser": parse_px4_pose_ned,
         "battery_parser": parse_px4_battery_status,
+        "vehicle_status_topic": "/cache/vehicle_status",
+        "vehicle_status_type": "px4_interface.msg.VehicleStatus",
+        "vehicle_status_parser": parse_px4_vehicle_status,
     }
 }
 
@@ -184,6 +190,18 @@ def _create_parser() -> argparse.ArgumentParser:
         help="电池主题的消息类型，使用完整的模块路径。",
     )
     parser.add_argument(
+        "--ros-vehicle-status-topic",
+        default=DEFAULT_VEHICLE_STATUS_TOPIC,
+        help=(
+            "提供飞行器状态信息的主题。默认为空字符串以禁用该订阅。"
+        ),
+    )
+    parser.add_argument(
+        "--ros-vehicle-status-type",
+        default=DEFAULT_VEHICLE_STATUS_TYPE,
+        help="飞行器状态主题的消息类型，使用完整的模块路径。",
+    )
+    parser.add_argument(
         "--ros-arg",
         action="append",
         dest="ros_args",
@@ -220,6 +238,10 @@ def _apply_ros_profile(args: argparse.Namespace) -> dict[str, Any] | None:
         args.ros_battery_topic = profile["battery_topic"]
     if args.ros_battery_type == DEFAULT_BATTERY_TYPE:
         args.ros_battery_type = profile["battery_type"]
+    if args.ros_vehicle_status_topic == DEFAULT_VEHICLE_STATUS_TOPIC:
+        args.ros_vehicle_status_topic = profile.get("vehicle_status_topic", DEFAULT_VEHICLE_STATUS_TOPIC)
+    if args.ros_vehicle_status_type == DEFAULT_VEHICLE_STATUS_TYPE:
+        args.ros_vehicle_status_type = profile.get("vehicle_status_type", DEFAULT_VEHICLE_STATUS_TYPE)
 
     logger.info("已应用 ROS profile: %s", profile_name)
     return profile
@@ -241,6 +263,10 @@ def _make_data_source(
                 "battery_topic": battery_topic,
                 "odometry_msg_type": args.ros_odometry_type,
                 "battery_msg_type": args.ros_battery_type,
+                "vehicle_status_topic": args.ros_vehicle_status_topic or None,
+                "vehicle_status_msg_type": (
+                    args.ros_vehicle_status_type if args.ros_vehicle_status_topic else None
+                ),
                 "ros_args": args.ros_args,
             }
             if profile is not None:
@@ -250,6 +276,9 @@ def _make_data_source(
                     ros2_kwargs["odometry_parser"] = odometry_parser
                 if battery_parser is not None:
                     ros2_kwargs["battery_parser"] = battery_parser
+                vehicle_status_parser = profile.get("vehicle_status_parser")
+                if vehicle_status_parser is not None:
+                    ros2_kwargs["vehicle_status_parser"] = vehicle_status_parser
 
             return Ros2DataSource(**ros2_kwargs)
         except RuntimeError as exc:

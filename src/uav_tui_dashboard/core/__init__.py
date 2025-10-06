@@ -6,8 +6,9 @@ from .datasource import (
     SimDataSource,
     parse_px4_battery_status,
     parse_px4_pose_ned,
+    parse_px4_vehicle_status,
 )
-from .models import UAVStatus, Vector3
+from .models import UAVStatus, Vector3, VehicleState
 
 __all__ = [
     "DataSource",
@@ -15,6 +16,8 @@ __all__ = [
     "SimDataSource",
     "UAVStatus",
     "Vector3",
+    "VehicleState",
     "parse_px4_pose_ned",
     "parse_px4_battery_status",
+    "parse_px4_vehicle_status",
 ]

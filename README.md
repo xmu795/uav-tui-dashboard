@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 实时显示无人机位置、姿态、电池电量和电压
+- 实时显示无人机位置、姿态、电池、电源以及飞行器健康状态（连接有效性、导航模式、Failsafe、预飞检查）
 - 模拟数据源用于演示
 - 可配置轮询间隔和日志级别
 - 优雅关闭和日志记录
@@ -74,6 +74,7 @@ uav-dashboard --mode ros2
 - `--ros-namespace`：节点命名空间
 - `--ros-odometry-topic` 与 `--ros-odometry-type`：里程计主题与消息类型
 - `--ros-battery-topic` 与 `--ros-battery-type`：电池主题与消息类型（留空主题可禁用订阅）
+- `--ros-vehicle-status-topic` 与 `--ros-vehicle-status-type`：飞行器状态主题与消息类型（留空主题可禁用订阅）
 - `--ros-arg`：传递给 `rclpy.init()` 的额外参数，可多次使用
 
 #### PX4 Interface 预设
@@ -84,7 +85,7 @@ uav-dashboard --mode ros2
    uav-dashboard --mode ros2 --ros-profile px4_interface
    ```
 
-   该命令会自动选择 `/cache/vehicle_odometry`、`/cache/battery_status` 等主题，并使用 PX4 专用解析逻辑（含 NED→ENU 转换）。命令行参数仍可覆盖预设值。
+   该命令会自动选择 `/cache/vehicle_odometry`、`/cache/battery_status`、`/cache/vehicle_status` 等主题，并使用 PX4 专用解析逻辑（含 NED→ENU 转换与飞行器状态解码）。命令行参数仍可覆盖预设值。
 
 - 仅用于本地演示时，可启动项目内的模拟发布器（需要已 source ROS2 环境）：
 

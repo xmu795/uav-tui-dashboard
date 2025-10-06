@@ -10,9 +10,10 @@ import logging
 import math
 import random
 import threading
+from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
-from .models import UAVStatus, Vector3
+from .models import UAVStatus, Vector3, VehicleState
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,9 @@ class DataSource(abc.ABC):
     @abc.abstractmethod
     async def fetch(self) -> UAVStatus:
         """Return the latest UAV status."""
+
+
+VehicleStateParser = Callable[[Any, VehicleState], VehicleState]
 
 
 class SimDataSource(DataSource):
@@ -87,11 +91,23 @@ class SimDataSource(DataSource):
             drained_battery = max(0.0, self._status.battery_level - self._rng.uniform(0, self._battery_drain))
             voltage = max(self._min_voltage, self._status.voltage + self._rng.uniform(-self._voltage_delta, self._voltage_delta))
 
+            simulated_vehicle_state = VehicleState(
+                valid=True,
+                timestamp=datetime.now(tz=timezone.utc),
+                arming_state=self._rng.choice([0, 1, 2, 3]),
+                nav_state=self._rng.choice([0, 1, 2, 3, 4, 5]),
+                failsafe=self._rng.random() < 0.05,
+                pre_flight_checks_pass=True,
+            )
+            if simulated_vehicle_state.failsafe:
+                simulated_vehicle_state.pre_flight_checks_pass = False
+
             self._status = (
                 self._status
                 .with_position(new_position)
                 .with_orientation(new_orientation)
                 .with_battery(drained_battery, voltage)
+                .with_vehicle_state(simulated_vehicle_state)
             )
 
             logger.debug("Simulated status: %s", self._status)
@@ -124,6 +140,9 @@ class Ros2DataSource(DataSource):
         battery_msg_type: str = "sensor_msgs.msg.BatteryState",
         odometry_parser: Optional[Callable[[Any], tuple[Vector3, Vector3]]] = None,
         battery_parser: Optional[Callable[[Any, UAVStatus], tuple[float, float]]] = None,
+        vehicle_status_topic: str | None = None,
+        vehicle_status_msg_type: str | None = None,
+        vehicle_status_parser: Optional[VehicleStateParser] = None,
         qos_depth: int = 10,
         ros_args: Optional[list[str]] = None,
         spin_timeout: float = 0.1,
@@ -136,6 +155,9 @@ class Ros2DataSource(DataSource):
         self._battery_msg_type = battery_msg_type
         self._odometry_parser = odometry_parser or _parse_odometry_message
         self._battery_parser = battery_parser or _parse_battery_message
+        self._vehicle_status_topic = vehicle_status_topic
+        self._vehicle_status_msg_type = vehicle_status_msg_type
+        self._vehicle_status_parser = vehicle_status_parser or _parse_vehicle_status_message
         self._qos_depth = qos_depth
         self._ros_args = ros_args
         self._spin_timeout = spin_timeout
@@ -154,6 +176,7 @@ class Ros2DataSource(DataSource):
         self._stop_event = threading.Event()
         self._odometry_msg_cls: Optional[type[Any]] = None
         self._battery_msg_cls: Optional[type[Any]] = None
+        self._vehicle_status_msg_cls: Optional[type[Any]] = None
 
     async def start(self) -> None:
         if self._running:
@@ -178,7 +201,12 @@ class Ros2DataSource(DataSource):
         )
         self._spin_thread.start()
         self._running = True
-        logger.info("ROS2 数据源已启动，订阅主题: %s, %s", self._odometry_topic, self._battery_topic)
+        topics = [self._odometry_topic]
+        if self._battery_topic:
+            topics.append(self._battery_topic)
+        if self._vehicle_status_topic:
+            topics.append(self._vehicle_status_topic)
+        logger.info("ROS2 数据源已启动，订阅主题: %s", ", ".join(topics))
 
     def _initialise_ros_components(self) -> None:
         try:
@@ -199,6 +227,8 @@ class Ros2DataSource(DataSource):
         self._odometry_msg_cls = _resolve_message_type(self._odometry_msg_type)
         if self._battery_topic is not None:
             self._battery_msg_cls = _resolve_message_type(self._battery_msg_type)
+        if self._vehicle_status_topic and self._vehicle_status_msg_type:
+            self._vehicle_status_msg_cls = _resolve_message_type(self._vehicle_status_msg_type)
 
         self._context = context_module.Context()
         self._rclpy.init(args=self._ros_args, context=self._context)
@@ -228,6 +258,19 @@ class Ros2DataSource(DataSource):
                     self._battery_msg_cls,
                     self._battery_topic,
                     self._handle_battery,
+                    qos_profile,
+                )
+            )
+        if (
+            self._vehicle_status_topic
+            and self._vehicle_status_msg_cls is not None
+            and self._vehicle_status_parser is not None
+        ):
+            self._subscriptions.append(
+                self._node.create_subscription(
+                    self._vehicle_status_msg_cls,
+                    self._vehicle_status_topic,
+                    self._handle_vehicle_status,
                     qos_profile,
                 )
             )
@@ -312,6 +355,18 @@ class Ros2DataSource(DataSource):
 
         with self._status_lock:
             self._status = self._status.with_battery(battery_level, voltage)
+
+    def _handle_vehicle_status(self, message: Any) -> None:
+        if self._vehicle_status_parser is None:
+            return
+        try:
+            vehicle_state = self._vehicle_status_parser(message, self._status.vehicle_state)
+        except Exception:
+            logger.exception("解析 VehicleStatus 消息失败: %s", type(message).__name__)
+            return
+
+        with self._status_lock:
+            self._status = self._status.with_vehicle_state(vehicle_state)
 
 
 def _resolve_message_type(dotted_path: str) -> type[Any]:
@@ -436,6 +491,36 @@ def _parse_battery_message(message: Any, current_status: UAVStatus) -> tuple[flo
     return battery_level, voltage
 
 
+def _parse_vehicle_status_message(message: Any, current_state: VehicleState) -> VehicleState:
+    """Parse a generic vehicle status style message into :class:`VehicleState`."""
+
+    valid = _coerce_bool(getattr(message, "valid", current_state.valid), current_state.valid)
+
+    timestamp_raw = getattr(message, "timestamp", None)
+    timestamp = _ros_time_to_datetime(timestamp_raw) or current_state.timestamp
+
+    arming_state = _coerce_optional_int(
+        getattr(message, "arming_state", current_state.arming_state), current_state.arming_state
+    )
+    nav_state = _coerce_optional_int(
+        getattr(message, "nav_state", current_state.nav_state), current_state.nav_state
+    )
+
+    failsafe = _coerce_bool(getattr(message, "failsafe", current_state.failsafe), current_state.failsafe)
+    preflight_default = current_state.pre_flight_checks_pass
+    preflight_raw = getattr(message, "pre_flight_checks_pass", preflight_default)
+    pre_flight_checks_pass = _coerce_optional_bool(preflight_raw, preflight_default)
+
+    return VehicleState(
+        valid=valid,
+        timestamp=timestamp,
+        arming_state=arming_state,
+        nav_state=nav_state,
+        failsafe=failsafe,
+        pre_flight_checks_pass=pre_flight_checks_pass,
+    )
+
+
 def parse_px4_pose_ned(message: Any) -> tuple[Vector3, Vector3]:
     """Parse px4_interface/msg/PoseNED message into ENU position and Euler angles."""
 
@@ -504,6 +589,130 @@ def parse_px4_battery_status(message: Any, current_status: UAVStatus) -> tuple[f
     return battery_level, voltage
 
 
+def parse_px4_vehicle_status(message: Any, current_state: VehicleState) -> VehicleState:
+    """Parse px4_interface/msg/VehicleStatus into :class:`VehicleState`."""
+
+    # PX4 VehicleStatus typically exposes `timestamp` in microseconds and may also
+    # include the composite `timestamp_sample`. We prefer ROS time fields if
+    # present, but gracefully fall back to the microsecond counter.
+    timestamp = (
+        _ros_time_to_datetime(getattr(message, "timestamp", None))
+        or _ros_time_to_datetime(getattr(message, "timestamp_sample", None))
+        or _px4_microseconds_to_datetime(getattr(message, "timestamp", None))
+        or current_state.timestamp
+    )
+
+    arming_state = _coerce_optional_int(getattr(message, "arming_state", None), current_state.arming_state)
+    nav_state = _coerce_optional_int(getattr(message, "nav_state", None), current_state.nav_state)
+    failsafe = _coerce_bool(getattr(message, "failsafe", current_state.failsafe), current_state.failsafe)
+
+    preflight_raw = getattr(message, "pre_flight_checks_pass", current_state.pre_flight_checks_pass)
+    pre_flight_checks_pass = _coerce_optional_bool(preflight_raw, current_state.pre_flight_checks_pass)
+
+    valid = _coerce_bool(getattr(message, "nav_state_valid", getattr(message, "valid", current_state.valid)), current_state.valid)
+
+    return VehicleState(
+        valid=valid,
+        timestamp=timestamp,
+        arming_state=arming_state,
+        nav_state=nav_state,
+        failsafe=failsafe,
+        pre_flight_checks_pass=pre_flight_checks_pass,
+    )
+
+
+def _ros_time_to_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+    sec = getattr(value, "sec", None)
+    nanosec = getattr(value, "nanosec", None)
+    if sec is not None and nanosec is not None:
+        try:
+            sec_value = int(sec)
+            nanosec_value = int(nanosec)
+        except (TypeError, ValueError):
+            return None
+        timestamp = sec_value + nanosec_value / 1_000_000_000
+        try:
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        except OSError:  # pragma: no cover - defensive against platform limits
+            return None
+
+    # Handle builtin_interfaces/msg/Time represented as tuple/list
+    if isinstance(value, (tuple, list)) and len(value) >= 2:
+        try:
+            sec_value = int(value[0])
+            nanosec_value = int(value[1])
+        except (TypeError, ValueError):
+            return None
+        timestamp = sec_value + nanosec_value / 1_000_000_000
+        return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+
+    return None
+
+
+def _px4_microseconds_to_datetime(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    try:
+        raw = int(value)
+    except (TypeError, ValueError):
+        return None
+    if raw <= 0:
+        return None
+
+    # PX4 timestamps are typically in microseconds.
+    seconds = raw / 1_000_000
+    try:
+        return datetime.fromtimestamp(seconds, tz=timezone.utc)
+    except OSError:  # pragma: no cover - defensive
+        return None
+
+
+def _coerce_optional_int(value: Any, default: Optional[int]) -> Optional[int]:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "off"}:
+            return False
+    return default
+
+
+def _coerce_optional_bool(value: Any, default: Optional[bool]) -> Optional[bool]:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "off"}:
+            return False
+    return default
+
+
 def _quaternion_to_euler(x: float, y: float, z: float, w: float) -> Vector3:
     """Convert quaternion to Euler angles (roll, pitch, yaw) in radians."""
 
@@ -530,4 +739,5 @@ __all__ = [
     "Ros2DataSource",
     "parse_px4_pose_ned",
     "parse_px4_battery_status",
+    "parse_px4_vehicle_status",
 ]

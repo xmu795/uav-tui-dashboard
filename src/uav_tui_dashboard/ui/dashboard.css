@@ -1,7 +1,6 @@
 /* UAV Dashboard CSS - 遵循Linux工具设计美学：简洁、实用、功能优先 */
 
 UAVDashboard {
-    layout: vertical;
     background: black;
     color: white;
 }
@@ -18,19 +17,48 @@ DataTable {
     border: solid green;
     background: black;
     color: white;
+    padding: 1 0;
 }
 
-DataTable > .datatable--header {
+DataTable>.datatable--header {
     background: darkblue;
     color: white;
 }
 
-DataTable > .datatable--row {
+DataTable>.datatable--row {
     background: black;
     color: white;
 }
 
-DataTable > .datatable--row:hover {
+DataTable DataRow#vehicle_valid DataCell {
+    color: lightgreen;
+}
+
+DataTable DataRow#vehicle_timestamp DataCell {
+    color: skyblue;
+}
+
+DataTable DataRow#vehicle_failsafe {
+    background: #220000;
+}
+
+DataTable DataRow#vehicle_failsafe DataCell {
+    color: #ff8686;
+}
+
+DataTable DataRow#vehicle_preflight DataCell {
+    color: #ffd27f;
+}
+
+#status_table Column#field {
+    width: 24;
+}
+
+#status_table Column#value {
+    width: 32;
+}
+
+DataTable>.datatable--row:hover {
     background: darkgreen;
     color: white;
 }
