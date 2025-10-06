@@ -9,11 +9,12 @@ from typing import Optional
 
 from rich.text import Text
 from textual.app import App, ComposeResult
+from textual.containers import Horizontal, Vertical
 from textual.timer import Timer
-from textual.widgets import DataTable, Footer, Header
+from textual.widgets import Button, DataTable, Footer, Header, ListItem, ListView, Static
 
 from ..core.datasource import DataSource
-from ..core.models import UAVStatus
+from ..core.models import FlightSnapshot, FlightSnapshotQueue, UAVStatus
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +59,24 @@ class UAVDashboardApp(App):
         self._poll_interval = poll_interval
         self._status = UAVStatus.empty()
         self._status_timer: Optional[Timer] = None
+        self._snapshot_queue = FlightSnapshotQueue(maxlen=20)
 
     def compose(self) -> ComposeResult:
+        table = DataTable(id="status_table")
+        snapshot_panel = Vertical(
+            Static("Flight Snapshots", id="snapshot_title"),
+            ListView(id="snapshot_list"),
+            Horizontal(
+                Button("Capture", id="snapshot_capture", variant="success"),
+                Button("Export", id="snapshot_export", variant="primary"),
+                Button("Clear", id="snapshot_clear", variant="warning"),
+                id="snapshot_actions",
+            ),
+            id="snapshot_panel",
+        )
+
         yield Header(show_clock=True)
-        yield DataTable(id="status_table")
+        yield Horizontal(table, snapshot_panel, id="content_area")
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -71,6 +86,7 @@ class UAVDashboardApp(App):
         table.add_column("Value", key=self.VALUE_COLUMN_KEY)
         self._add_rows(table)
         self._status_timer = self.set_interval(self._poll_interval, self._tick, name="status_poll")
+        self._refresh_snapshot_list()
 
     async def on_unmount(self) -> None:
         if self._status_timer is not None:
@@ -154,6 +170,53 @@ class UAVDashboardApp(App):
                 false_label="FAIL",
             ),
         )
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        button_id = event.button.id
+        if button_id == "snapshot_capture":
+            snapshot = self._snapshot_queue.capture(self._status)
+            self._refresh_snapshot_list()
+            self.notify(f"Captured snapshot at {self._format_snapshot_time(snapshot)}")
+        elif button_id == "snapshot_export":
+            try:
+                path = self._snapshot_queue.export()
+            except ValueError:
+                self.notify("No snapshots to export yet.", severity="warning")
+            else:
+                self.notify(f"Exported {len(self._snapshot_queue)} snapshots → {path}", severity="information")
+        elif button_id == "snapshot_clear":
+            if len(self._snapshot_queue) == 0:
+                self.notify("Snapshot queue already empty.", severity="warning")
+                return
+            self._snapshot_queue.clear()
+            self._refresh_snapshot_list()
+            self.notify("Cleared all snapshots.", severity="information")
+
+    def _refresh_snapshot_list(self) -> None:
+        list_view = self.query_one("#snapshot_list", ListView)
+        if hasattr(list_view, "clear"):
+            list_view.clear()  # type: ignore[attr-defined]
+        else:  # pragma: no cover - compatibility path
+            for child in list(list_view.children):
+                child.remove()
+        snapshots = self._snapshot_queue.list()
+        if not snapshots:
+            list_view.append(ListItem(Static("No snapshots yet", classes="snapshot-empty")))
+            return
+
+        for index, snapshot in enumerate(snapshots, start=1):
+            list_view.append(ListItem(Static(self._format_snapshot_entry(index, snapshot), classes="snapshot-entry")))
+
+    def _format_snapshot_entry(self, index: int, snapshot: FlightSnapshot) -> str:
+        ts_text = self._format_snapshot_time(snapshot)
+        return f"{index:02d} · {ts_text} · {snapshot.status.battery_level:.1f}%"
+
+    @staticmethod
+    def _format_snapshot_time(snapshot: FlightSnapshot) -> str:
+        timestamp = snapshot.captured_at
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        return timestamp.astimezone(timezone.utc).strftime("%H:%M:%S UTC")
 
     @staticmethod
     def _bool_text(

@@ -83,6 +83,28 @@
   ```
   对应模块需能被 `PYTHONPATH` 找到。
 
+  ## 快照记录与导出
+
+  除了实时表格，Textual UI 还提供右侧的 **Flight Snapshots** 队列，用于在调试或试飞时抓取关键时刻的数据快照。
+
+  ### 捕获流程
+
+  1. 当界面显示出想要记录的状态时，点击 **Capture** 按钮。
+  2. 当前 `UAVStatus`（位置、姿态、电池、VehicleState 等）会被复制到队列末尾。
+  3. 队列默认最多保留 20 条，若超过会自动丢弃最早的条目。可以在代码中调整 `FlightSnapshotQueue(maxlen=...)`。
+
+  ### 导出与后处理
+
+  - 点击 **Export** 将队列写出为 JSON 数组，默认输出到当前工作目录，文件名类似 `uav_snapshots_20251006-081530.json`。
+  - JSON 数据包含 `captured_at` UTC 时间戳，以及 `status` 字段下的 `position`、`orientation`、`battery_level`、`voltage`、`vehicle_state` 等信息，方便导入 Pandas、Jupyter 或报告模板。
+  - **Clear** 可快速重置队列，便于分阶段记录。
+
+  #### 应用场景示例
+
+  - **手动试飞记录**：手动捕捉起飞、巡航、返航三个阶段，导出到 JSON 用于飞行日志。
+  - **异常排查**：当 UI 显示 failsafe 或电量异常时立即 Capture，多次采样后导出用于分析。
+  - **与 rosbag 互补**：无需开启完整 rosbag，仍可收集关键帧数据；如需全量回放，可搭配 rosbag 使用。
+
 ## PX4 Interface 集成规划
 
 > 目标：将 PX4 Interface 提供的缓存化遥测数据作为 TUI 的主要数据源，实现“PX4 Gateway → 缓存话题 → TUI 展示”的闭环，同时保持对模拟及其他 ROS2 数据源的兼容。

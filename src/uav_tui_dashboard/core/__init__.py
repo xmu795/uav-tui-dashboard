@@ -8,9 +8,11 @@ from .datasource import (
     parse_px4_pose_ned,
     parse_px4_vehicle_status,
 )
-from .models import UAVStatus, Vector3, VehicleState
+from .models import FlightSnapshot, FlightSnapshotQueue, UAVStatus, Vector3, VehicleState
 
 __all__ = [
+    "FlightSnapshot",
+    "FlightSnapshotQueue",
     "DataSource",
     "Ros2DataSource",
     "SimDataSource",

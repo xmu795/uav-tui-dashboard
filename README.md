@@ -5,6 +5,7 @@
 ## 功能
 
 - 实时显示无人机位置、姿态、电池、电源以及飞行器健康状态（连接有效性、导航模式、Failsafe、预飞检查）
+- 轻量级飞行状态快照队列：一键暂存当前状态、查看历史，并导出 JSON 文件
 - 模拟数据源用于演示
 - 可配置轮询间隔和日志级别
 - 优雅关闭和日志记录
@@ -76,6 +77,16 @@ uav-dashboard --mode ros2
 - `--ros-battery-topic` 与 `--ros-battery-type`：电池主题与消息类型（留空主题可禁用订阅）
 - `--ros-vehicle-status-topic` 与 `--ros-vehicle-status-type`：飞行器状态主题与消息类型（留空主题可禁用订阅）
 - `--ros-arg`：传递给 `rclpy.init()` 的额外参数，可多次使用
+
+#### 快照面板
+
+应用右侧新增“Flight Snapshots”面板，适用于快速记录多个时间点的遥测状态，而无需整段录制。
+
+- **Capture**：将当前 `UAVStatus` 冻结到队列中（默认上限 20 条，自动丢弃最旧项）。
+- **Export**：把队列写出为 JSON 文件，默认保存到当前工作目录，命名格式 `uav_snapshots_YYYYMMDD-HHMMSS.json`。
+- **Clear**：清空队列。
+
+导出的 JSON 中包含捕获时间（UTC ISO8601）、位置/姿态/电池/状态等字段，方便交给后续工具或报告。
 
 #### PX4 Interface 预设
 
