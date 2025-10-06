@@ -58,21 +58,22 @@
    ```
 2. 安装 Python 依赖：
    ```bash
-  pip install -e .[ros2]
+    pip install -e .
    ```
-  `ros2` 可选依赖现包含 `rclpy`、`PyYAML`、`jinja2`、`typeguard`、`lark`、`numpy` 等 ROS 插件/消息所需包。
+    `ros2` 可选依赖现包含 `rclpy`、`PyYAML`、`jinja2`、`typeguard`、`lark`、`numpy` 等 ROS 插件/消息所需包。
   或使用发行版提供的 `rclpy`（Ubuntu: `sudo apt install ros-humble-rclpy`）。
+
 3. 启动提供遥测数据的 ROS2 节点（例如 PX4 的 `px4_ros_com`、自建仿真等）。
 
 ## 启动与参数示例
 
-```bash
-uav-dashboard --mode ros2 \
-  --ros-namespace /uav1 \
-  --ros-odometry-topic /uav1/nav/odom \
-  --ros-battery-topic /uav1/power/battery \
-  --poll-interval 0.5
-```
+  ```bash
+  uav-dashboard --mode ros2 \
+    --ros-namespace /uav1 \
+    --ros-odometry-topic /uav1/nav/odom \
+    --ros-battery-topic /uav1/power/battery \
+    --poll-interval 0.5
+  ```
 
 - `--ros-arg` 可多次使用，用于传递额外的 rclpy 初始化参数（如 `--ros-arg --enclave /secure`）。
 - 若需要更换消息类型（自定义消息），请提供完整的 Python 模块路径，例如：
@@ -135,11 +136,14 @@ uav-dashboard --mode ros2 \
 
 ```bash
 # 终端 1：启动模拟发布器
-python /home/cfly/ros2_ws/scripts/mock_px4_cache_publisher.py
-
+colcon launch px4_interface mock_px4.launch.py
 # 终端 2：启动 TUI（PX4 预设）
 uav-dashboard --mode ros2 --ros-profile px4_interface --poll-interval 0.5 --log-level DEBUG
 ```
+
+> ✅ **提示**：模拟发布器会周期性检查 `/cache/*` 话题是否已有其他发布者（例如真实 PX4 Gateway 或未关闭的旧实例）。
+> 若检测到冲突，它会暂停输出并在终端打印错误日志，避免仪表盘在多个数据源之间跳变。
+> 请先停止其他发布者，再重新启动脚本即可恢复模拟数据。
 
 使用 `ros2 topic echo /cache/vehicle_odometry` 可验证话题是否持续更新。若需要自动化测试，可在 CI 中单独启动该脚本并运行 TUI 的集成测试。
 
