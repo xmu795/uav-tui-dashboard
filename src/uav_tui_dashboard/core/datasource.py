@@ -436,6 +436,74 @@ def _parse_battery_message(message: Any, current_status: UAVStatus) -> tuple[flo
     return battery_level, voltage
 
 
+def parse_px4_pose_ned(message: Any) -> tuple[Vector3, Vector3]:
+    """Parse px4_interface/msg/PoseNED message into ENU position and Euler angles."""
+
+    translation = getattr(message, "translation", None)
+    if translation is None:
+        raise TypeError("PoseNED 消息缺少 translation 字段")
+    translation_values = list(translation)
+    if len(translation_values) < 3:
+        raise TypeError("PoseNED translation 字段长度不足 3")
+    try:
+        north = float(translation_values[0])
+        east = float(translation_values[1])
+        down = float(translation_values[2])
+    except (TypeError, ValueError) as exc:
+        raise TypeError("PoseNED translation 字段无法解析为浮点数") from exc
+
+    # Convert NED (North, East, Down) to ENU (East, North, Up) for UI display.
+    position: Vector3 = (east, north, -down)
+
+    orientation_components = getattr(message, "orientation", None)
+    orientation: Vector3 = (0.0, 0.0, 0.0)
+    if orientation_components is not None:
+        components = list(orientation_components)
+        if len(components) >= 4:
+            try:
+                w = float(components[0])
+                x = float(components[1])
+                y = float(components[2])
+                z = float(components[3])
+            except (TypeError, ValueError) as exc:
+                raise TypeError("PoseNED orientation 字段无法解析为浮点数") from exc
+            orientation = _quaternion_to_euler(x, y, z, w)
+
+    return position, orientation
+
+
+def parse_px4_battery_status(message: Any, current_status: UAVStatus) -> tuple[float, float]:
+    """Parse px4_interface/msg/BatteryStatus message into percentage and voltage."""
+
+    battery_level = current_status.battery_level
+    voltage = current_status.voltage
+
+    remaining = getattr(message, "remaining", None)
+    if remaining is not None:
+        try:
+            remaining_value = float(remaining)
+        except (TypeError, ValueError):
+            logger.debug("忽略无法解析的剩余电量: %s", remaining)
+        else:
+            if not math.isnan(remaining_value):
+                if 0.0 <= remaining_value <= 1.0:
+                    battery_level = max(0.0, min(100.0, remaining_value * 100.0))
+                else:
+                    battery_level = max(0.0, min(100.0, remaining_value))
+
+    voltage_v = getattr(message, "voltage_v", None)
+    if voltage_v is not None:
+        try:
+            voltage_value = float(voltage_v)
+        except (TypeError, ValueError):
+            logger.debug("忽略无法解析的电压值: %s", voltage_v)
+        else:
+            if not math.isnan(voltage_value) and voltage_value > 0.0:
+                voltage = voltage_value
+
+    return battery_level, voltage
+
+
 def _quaternion_to_euler(x: float, y: float, z: float, w: float) -> Vector3:
     """Convert quaternion to Euler angles (roll, pitch, yaw) in radians."""
 
@@ -456,4 +524,10 @@ def _quaternion_to_euler(x: float, y: float, z: float, w: float) -> Vector3:
     return (roll, pitch, yaw)
 
 
-__all__ = ["DataSource", "SimDataSource", "Ros2DataSource"]
+__all__ = [
+    "DataSource",
+    "SimDataSource",
+    "Ros2DataSource",
+    "parse_px4_pose_ned",
+    "parse_px4_battery_status",
+]

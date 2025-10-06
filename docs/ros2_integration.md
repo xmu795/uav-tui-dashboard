@@ -58,9 +58,10 @@
    ```
 2. 安装 Python 依赖：
    ```bash
-   pip install -e .[ros2]
+  pip install -e .[ros2]
    ```
-   或使用发行版提供的 `rclpy`（Ubuntu: `sudo apt install ros-humble-rclpy`）。
+  `ros2` 可选依赖现包含 `rclpy`、`PyYAML`、`jinja2`、`typeguard`、`lark`、`numpy` 等 ROS 插件/消息所需包。
+  或使用发行版提供的 `rclpy`（Ubuntu: `sudo apt install ros-humble-rclpy`）。
 3. 启动提供遥测数据的 ROS2 节点（例如 PX4 的 `px4_ros_com`、自建仿真等）。
 
 ## 启动与参数示例
@@ -127,6 +128,20 @@ uav-dashboard --mode ros2 \
 1. **运行时集成**：在终端中依次启动 PX4 Interface 与 TUI（`source install/setup.bash` 后执行 `uav-dashboard --mode ros2 --ros-profile px4_interface`）。
 2. **可选 ROS2 包装**：若需与其他 ROS2 节点一起通过 launch 文件启动，可为 TUI 创建轻量级 `ament_python` 包装，在 `package.xml` 中声明对 `px4_interface` 的依赖，并提供 `launch` 脚本。
 3. **监控与日志**：结合 `--log-level DEBUG` 与日志目录，记录 PX4 Gateway 缓存延迟、NED→ENU 转换结果以及 UI 渲染速率，为后续优化提供证据。
+
+### 7. 本地模拟数据源
+
+为方便离线演示，仓库提供 `scripts/mock_px4_cache_publisher.py`，可在未连接真实飞控时模拟发布 `/cache/vehicle_odometry`、`/cache/battery_status` 及 `/cache/vehicle_status` 数据。
+
+```bash
+# 终端 1：启动模拟发布器
+python /home/cfly/ros2_ws/scripts/mock_px4_cache_publisher.py
+
+# 终端 2：启动 TUI（PX4 预设）
+uav-dashboard --mode ros2 --ros-profile px4_interface --poll-interval 0.5 --log-level DEBUG
+```
+
+使用 `ros2 topic echo /cache/vehicle_odometry` 可验证话题是否持续更新。若需要自动化测试，可在 CI 中单独启动该脚本并运行 TUI 的集成测试。
 
 ### 6. 后续扩展路线
 

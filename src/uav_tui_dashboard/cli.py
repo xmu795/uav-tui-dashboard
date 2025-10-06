@@ -10,7 +10,13 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Optional, Sequence
 
-from .core import DataSource, Ros2DataSource, SimDataSource
+from .core import (
+    DataSource,
+    Ros2DataSource,
+    SimDataSource,
+    parse_px4_battery_status,
+    parse_px4_pose_ned,
+)
 from .logging_config import LoggingSetupResult, configure_logging
 from .shutdown import GracefulShutdown
 from .ui import UAVDashboardApp
@@ -47,6 +53,24 @@ logger = logging.getLogger(__name__)
 
 LOG_CONFIG_ENV_VAR = "UAV_TUI_LOG_CONFIG"
 LOG_DIR_ENV_VAR = "UAV_TUI_LOG_DIR"
+
+DEFAULT_ODOMETRY_TOPIC = "/uav/odometry"
+DEFAULT_BATTERY_TOPIC = "/uav/battery"
+DEFAULT_ODOMETRY_TYPE = "nav_msgs.msg.Odometry"
+DEFAULT_BATTERY_TYPE = "sensor_msgs.msg.BatteryState"
+
+ROS_PROFILE_PX4_INTERFACE = "px4_interface"
+
+ROS_PROFILES: dict[str, dict[str, Any]] = {
+    ROS_PROFILE_PX4_INTERFACE: {
+        "odometry_topic": "/cache/vehicle_odometry",
+        "odometry_type": "px4_interface.msg.PoseNED",
+        "battery_topic": "/cache/battery_status",
+        "battery_type": "px4_interface.msg.BatteryStatus",
+        "odometry_parser": parse_px4_pose_ned,
+        "battery_parser": parse_px4_battery_status,
+    }
+}
 
 
 def _resolve_optional_path(value: Optional[Path | str]) -> Optional[Path]:
@@ -141,22 +165,22 @@ def _create_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--ros-odometry-topic",
-        default="/uav/odometry",
+        default=DEFAULT_ODOMETRY_TOPIC,
         help="提供位置与姿态信息的里程计主题 (nav_msgs/msg/Odometry)。",
     )
     parser.add_argument(
         "--ros-battery-topic",
-        default="/uav/battery",
+        default=DEFAULT_BATTERY_TOPIC,
         help="提供电池信息的主题 (sensor_msgs/msg/BatteryState)。传入空字符串以禁用。",
     )
     parser.add_argument(
         "--ros-odometry-type",
-        default="nav_msgs.msg.Odometry",
+        default=DEFAULT_ODOMETRY_TYPE,
         help="里程计主题的消息类型，使用完整的模块路径 (如 nav_msgs.msg.Odometry)。",
     )
     parser.add_argument(
         "--ros-battery-type",
-        default="sensor_msgs.msg.BatteryState",
+        default=DEFAULT_BATTERY_TYPE,
         help="电池主题的消息类型，使用完整的模块路径。",
     )
     parser.add_argument(
@@ -165,23 +189,69 @@ def _create_parser() -> argparse.ArgumentParser:
         dest="ros_args",
         help="传递给 rclpy.init() 的额外参数，可多次使用。",
     )
+    if ROS_PROFILES:
+        parser.add_argument(
+            "--ros-profile",
+            choices=tuple(ROS_PROFILES.keys()),
+            help="应用预设的 ROS2 订阅配置（例如 px4_interface）。",
+        )
     return parser
 
 
-def _make_data_source(parser: argparse.ArgumentParser, args: argparse.Namespace) -> DataSource:
+def _apply_ros_profile(args: argparse.Namespace) -> dict[str, Any] | None:
+    profile_name = getattr(args, "ros_profile", None)
+    if profile_name is None:
+        return None
+
+    profile = ROS_PROFILES.get(profile_name)
+    if profile is None:
+        logger.warning("未找到 ROS profile '%s'，忽略", profile_name)
+        return None
+
+    if args.mode != "ros2":
+        logger.debug("ROS profile %s 强制切换数据源模式为 ros2", profile_name)
+        args.mode = "ros2"
+
+    if args.ros_odometry_topic == DEFAULT_ODOMETRY_TOPIC:
+        args.ros_odometry_topic = profile["odometry_topic"]
+    if args.ros_odometry_type == DEFAULT_ODOMETRY_TYPE:
+        args.ros_odometry_type = profile["odometry_type"]
+    if args.ros_battery_topic == DEFAULT_BATTERY_TOPIC:
+        args.ros_battery_topic = profile["battery_topic"]
+    if args.ros_battery_type == DEFAULT_BATTERY_TYPE:
+        args.ros_battery_type = profile["battery_type"]
+
+    logger.info("已应用 ROS profile: %s", profile_name)
+    return profile
+
+
+def _make_data_source(
+    parser: argparse.ArgumentParser,
+    args: argparse.Namespace,
+    profile: dict[str, Any] | None,
+) -> DataSource:
     if args.mode == "sim":
         return SimDataSource()
     if args.mode == "ros2":
         battery_topic = args.ros_battery_topic or None
         try:
-            return Ros2DataSource(
-                namespace=args.ros_namespace,
-                odometry_topic=args.ros_odometry_topic,
-                battery_topic=battery_topic,
-                odometry_msg_type=args.ros_odometry_type,
-                battery_msg_type=args.ros_battery_type,
-                ros_args=args.ros_args,
-            )
+            ros2_kwargs: dict[str, Any] = {
+                "namespace": args.ros_namespace,
+                "odometry_topic": args.ros_odometry_topic,
+                "battery_topic": battery_topic,
+                "odometry_msg_type": args.ros_odometry_type,
+                "battery_msg_type": args.ros_battery_type,
+                "ros_args": args.ros_args,
+            }
+            if profile is not None:
+                odometry_parser = profile.get("odometry_parser")
+                battery_parser = profile.get("battery_parser")
+                if odometry_parser is not None:
+                    ros2_kwargs["odometry_parser"] = odometry_parser
+                if battery_parser is not None:
+                    ros2_kwargs["battery_parser"] = battery_parser
+
+            return Ros2DataSource(**ros2_kwargs)
         except RuntimeError as exc:
             parser.error(str(exc))
         except ValueError as exc:
@@ -193,9 +263,10 @@ def _make_data_source(parser: argparse.ArgumentParser, args: argparse.Namespace)
 def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = _create_parser()
     args = parser.parse_args(argv)
+    profile = _apply_ros_profile(args)
     _configure_logging_from_args(parser, args)
     _install_global_exception_hook()
-    data_source = _make_data_source(parser, args)
+    data_source = _make_data_source(parser, args, profile)
     app = UAVDashboardApp(data_source=data_source, poll_interval=args.poll_interval)
 
     with GracefulShutdown() as shutdown:

@@ -76,6 +76,28 @@ uav-dashboard --mode ros2
 - `--ros-battery-topic` 与 `--ros-battery-type`：电池主题与消息类型（留空主题可禁用订阅）
 - `--ros-arg`：传递给 `rclpy.init()` 的额外参数，可多次使用
 
+#### PX4 Interface 预设
+
+- 如果工作区内运行了 [`px4_interface`](../px4_interface) 并发布 `/cache/*` 话题，可直接启用预设：
+
+   ```bash
+   uav-dashboard --mode ros2 --ros-profile px4_interface
+   ```
+
+   该命令会自动选择 `/cache/vehicle_odometry`、`/cache/battery_status` 等主题，并使用 PX4 专用解析逻辑（含 NED→ENU 转换）。命令行参数仍可覆盖预设值。
+
+- 仅用于本地演示时，可启动项目内的模拟发布器（需要已 source ROS2 环境）：
+
+   ```bash
+   # 终端 1：发布模拟 PX4 缓存话题
+   python /home/cfly/ros2_ws/scripts/mock_px4_cache_publisher.py
+
+   # 终端 2：运行 TUI
+   uav-dashboard --mode ros2 --ros-profile px4_interface --poll-interval 0.5
+   ```
+
+   可通过 `--log-level DEBUG` 查看解析日志，确认姿态、电量等数据在刷新。
+
 > 📘 **深入了解数据流与扩展方式**：请阅读 [`docs/ros2_integration.md`](docs/ros2_integration.md)，了解订阅结构、消息解析策略、缓存机制及常见问题解答。
 
 ### 命令行参数
