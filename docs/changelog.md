@@ -28,3 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `--config` option to specify custom configuration file path
 - Maintained support for existing ROS profiles and argument parsing
 - CSS now uses direct hex color values compatible with Textual framework
+
+## [2025-10-15]
+
+### Added
+- **Parser Unit Tests**: Added `tests/core/test_parsers.py` covering NED→ENU pose conversion, battery percentage/voltage derivation, and VehicleState inheritance scenarios.
+
+### Changed
+- **Core Module Split**: Refactored `core/datasource.py` into dedicated modules (`core/base.py`, `core/sim.py`, `core/ros.py`, `core/parsers.py`) to reduce file size and improve cohesion.
+- **Public Exports**: Updated `core/__init__.py` and package-level imports to surface the new module structure while keeping existing APIs consistent.
+
+### Deprecated
+- **Legacy Import Path**: `uav_tui_dashboard.core.datasource` now operates as a shim emitting a deprecation warning; migrate imports to the new submodules.

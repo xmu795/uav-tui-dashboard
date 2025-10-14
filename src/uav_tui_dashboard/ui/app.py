@@ -13,7 +13,7 @@ from textual.containers import Horizontal, Vertical
 from textual.timer import Timer
 from textual.widgets import Button, DataTable, Footer, Header, ListItem, ListView, Static
 
-from ..core.datasource import DataSource
+from ..core import DataSource
 from ..core.models import FlightSnapshot, FlightSnapshotQueue, UAVStatus
 
 logger = logging.getLogger(__name__)
