@@ -1,14 +1,28 @@
-/* UAV Dashboard CSS - 遵循Linux工具设计美学：简洁、实用、功能优先 */
+/* UAV Dashboard CSS - 使用Dracula主题色板 */
+
+/*
+Dracula 色板参考：
+- 背景色: #282a36 (background)
+- 前景色: #f8f8f2 (foreground)
+- 当前行/面板: #44475a (current-line)
+- 注释/次要文本: #6272a4 (comment)
+- 绿色/成功: #50fa7b (green)
+- 青色/信息: #8be9fd (cyan)
+- 黄色/警告: #f1fa8c (yellow)
+- 红色/错误: #ff5555 (red)
+- 紫色/强调: #bd93f9 (purple)
+- 粉色/次要强调: #ff79c6 (pink)
+*/
 
 UAVDashboard {
-    background: black;
-    color: white;
+    background: #282a36;
+    color: #f8f8f2;
 }
 
 Header {
     height: 3;
-    background: darkblue;
-    color: white;
+    background: #44475a;
+    color: #f8f8f2;
     text-align: center;
 }
 
@@ -23,40 +37,41 @@ Header {
 
 DataTable {
     height: 1fr;
-    border: solid green;
-    background: black;
-    color: white;
+    border: solid #50fa7b;
+    background: #282a36;
+    color: #f8f8f2;
     padding: 1 0;
 }
 
 DataTable>.datatable--header {
-    background: darkblue;
-    color: white;
+    background: #44475a;
+    color: #f8f8f2;
 }
 
 DataTable>.datatable--row {
-    background: black;
-    color: white;
+    background: #282a36;
+    color: #f8f8f2;
 }
 
 DataTable DataRow#vehicle_valid DataCell {
-    color: lightgreen;
+    color: #50fa7b;
 }
 
 DataTable DataRow#vehicle_timestamp DataCell {
-    color: skyblue;
+    color: #8be9fd;
 }
 
 DataTable DataRow#vehicle_failsafe {
     background: #220000;
+    /* 深红色背景，表示故障 */
 }
 
 DataTable DataRow#vehicle_failsafe DataCell {
-    color: #ff8686;
+    color: #ff5555;
 }
 
 DataTable DataRow#vehicle_preflight DataCell {
-    color: #ffd27f;
+    color: #f1fa8c;
 }
 
 #status_table Column#field {
@@ -68,15 +83,15 @@ DataTable DataRow#vehicle_preflight DataCell {
 }
 
 DataTable>.datatable--row:hover {
-    background: darkgreen;
-    color: white;
+    background: #44475a;
+    color: #f8f8f2;
 }
 
 #snapshot_panel {
     width: 36;
-    border: solid green;
-    background: #101010;
-    color: white;
+    border: solid #50fa7b;
+    background: #44475a;
+    color: #f8f8f2;
     padding: 1;
     height: 1fr;
     margin-left: 2;
@@ -84,14 +99,14 @@ DataTable>.datatable--row:hover {
 
 #snapshot_title {
     height: 1;
-    border-bottom: solid green;
+    border-bottom: solid #50fa7b;
     margin-bottom: 1;
     text-align: center;
 }
 
 #snapshot_list {
     height: 1fr;
-    border: panel darkgreen;
+    border: panel #50fa7b;
     overflow-y: auto;
     padding: 0;
 }
@@ -101,11 +116,11 @@ DataTable>.datatable--row:hover {
 }
 
 .snapshot-entry {
-    color: #9fd6ff;
+    color: #8be9fd;
 }
 
 .snapshot-empty {
-    color: gray;
+    color: #6272a4;
 }
 
 #snapshot_actions {
@@ -122,7 +137,7 @@ DataTable>.datatable--row:hover {
 /* 简洁无装饰，聚焦数据 */
 Footer {
     height: 1;
-    background: darkblue;
-    color: gray;
+    background: #44475a;
+    color: #6272a4;
     text-align: center;
 }
