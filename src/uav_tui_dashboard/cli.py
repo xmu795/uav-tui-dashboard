@@ -10,6 +10,11 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Optional, Sequence
 
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
 from .core import (
     DataSource,
     Ros2DataSource,
@@ -51,6 +56,31 @@ def _request_app_exit(app: UAVDashboardApp) -> None:
     app.exit()
 
 logger = logging.getLogger(__name__)
+
+def _load_config(config_path: Path) -> dict[str, Any]:
+    """Load configuration from TOML file."""
+    if not config_path.exists():
+        return {}
+    try:
+        with open(config_path, 'rb') as f:
+            config = tomllib.load(f)
+        # Convert empty strings to None for optional paths
+        if 'logging' in config:
+            logging_config = config['logging']
+            if logging_config.get('dir') == '':
+                logging_config['dir'] = None
+            if logging_config.get('config') == '':
+                logging_config['config'] = None
+        if 'ros2' in config:
+            ros2_config = config['ros2']
+            if ros2_config.get('namespace') == '':
+                ros2_config['namespace'] = None
+            if ros2_config.get('profile') == '':
+                ros2_config['profile'] = None
+        return config
+    except Exception as e:
+        logger.warning("Failed to load config from %s: %s", config_path, e)
+        return {}
 
 LOG_CONFIG_ENV_VAR = "UAV_TUI_LOG_CONFIG"
 LOG_DIR_ENV_VAR = "UAV_TUI_LOG_DIR"
@@ -131,86 +161,109 @@ def _install_global_exception_hook() -> None:
     sys.excepthook = _handle
 
 
-def _create_parser() -> argparse.ArgumentParser:
+def _create_config_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("config/default.toml"),
+        help="Path to configuration file (TOML).",
+    )
+    return parser
+
+
+def _create_parser(config: dict[str, Any]) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="UAV TUI dashboard")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("config/default.toml"),
+        help="Path to configuration file (TOML).",
+    )
     parser.add_argument(
         "--mode",
         choices=("sim", "ros2"),
-        default="sim",
+        default=config.get("general", {}).get("mode", "sim"),
         help="选择遥测数据源模式：'sim' 为内置模拟器，'ros2' 为订阅 ROS2 主题。",
     )
     parser.add_argument(
         "--poll-interval",
         type=float,
-        default=1.0,
+        default=config.get("general", {}).get("poll_interval", 1.0),
         help="Polling interval (seconds) for fetching telemetry data.",
     )
     parser.add_argument(
         "--log-level",
-        default="INFO",
+        default=config.get("logging", {}).get("level", "INFO"),
         help="Python logging level (e.g. INFO, DEBUG).",
     )
     parser.add_argument(
         "--log-dir",
         type=Path,
+        default=config.get("logging", {}).get("dir"),
         help="日志文件输出目录，默认使用系统日志目录。",
     )
     parser.add_argument(
         "--log-config",
         type=Path,
+        default=config.get("logging", {}).get("config"),
         help="日志配置文件（TOML/JSON），覆盖默认配置。",
     )
     parser.add_argument(
         "--no-log-console",
         action="store_true",
+        default=config.get("logging", {}).get("no_console", False),
         help="关闭控制台日志输出，仅写入文件。",
     )
     parser.add_argument(
         "--ros-namespace",
+        default=config.get("ros2", {}).get("namespace"),
         help="ROS2 数据源使用的命名空间，默认使用全局命名空间。",
     )
     parser.add_argument(
         "--ros-odometry-topic",
-        default=DEFAULT_ODOMETRY_TOPIC,
+        default=config.get("ros2", {}).get("odometry_topic", DEFAULT_ODOMETRY_TOPIC),
         help="提供位置与姿态信息的里程计主题 (nav_msgs/msg/Odometry)。",
     )
     parser.add_argument(
         "--ros-battery-topic",
-        default=DEFAULT_BATTERY_TOPIC,
+        default=config.get("ros2", {}).get("battery_topic", DEFAULT_BATTERY_TOPIC),
         help="提供电池信息的主题 (sensor_msgs/msg/BatteryState)。传入空字符串以禁用。",
     )
     parser.add_argument(
         "--ros-odometry-type",
-        default=DEFAULT_ODOMETRY_TYPE,
+        default=config.get("ros2", {}).get("odometry_type", DEFAULT_ODOMETRY_TYPE),
         help="里程计主题的消息类型，使用完整的模块路径 (如 nav_msgs.msg.Odometry)。",
     )
     parser.add_argument(
         "--ros-battery-type",
-        default=DEFAULT_BATTERY_TYPE,
+        default=config.get("ros2", {}).get("battery_type", DEFAULT_BATTERY_TYPE),
         help="电池主题的消息类型，使用完整的模块路径。",
     )
     parser.add_argument(
         "--ros-vehicle-status-topic",
-        default=DEFAULT_VEHICLE_STATUS_TOPIC,
+        default=config.get("ros2", {}).get("vehicle_status_topic", DEFAULT_VEHICLE_STATUS_TOPIC),
         help=(
             "提供飞行器状态信息的主题。默认为空字符串以禁用该订阅。"
         ),
     )
     parser.add_argument(
         "--ros-vehicle-status-type",
-        default=DEFAULT_VEHICLE_STATUS_TYPE,
+        default=config.get("ros2", {}).get("vehicle_status_type", DEFAULT_VEHICLE_STATUS_TYPE),
         help="飞行器状态主题的消息类型，使用完整的模块路径。",
     )
     parser.add_argument(
         "--ros-arg",
         action="append",
         dest="ros_args",
+        default=config.get("ros2", {}).get("args", []),
         help="传递给 rclpy.init() 的额外参数，可多次使用。",
     )
     if ROS_PROFILES:
         parser.add_argument(
             "--ros-profile",
             choices=tuple(ROS_PROFILES.keys()),
+            default=config.get("ros2", {}).get("profile"),
             help="应用预设的 ROS2 订阅配置（例如 px4_interface）。",
         )
     return parser
@@ -290,8 +343,11 @@ def _make_data_source(
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    parser = _create_parser()
-    args = parser.parse_args(argv)
+    config_parser = _create_config_parser()
+    config_args, remaining = config_parser.parse_known_args(argv)
+    config = _load_config(config_args.config)
+    parser = _create_parser(config)
+    args = parser.parse_args(remaining)
     profile = _apply_ros_profile(args)
     _configure_logging_from_args(parser, args)
     _install_global_exception_hook()

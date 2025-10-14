@@ -7,5 +7,9 @@
 	- [`development.md`](developer_guide/development.md) — 开发环境、依赖安装、常用命令。
 	- [`git_standards.md`](developer_guide/git_standards.md) — 分支、提交、PR 的统一规范（必读）。
 3. [`documentation_guidelines.md`](documentation_guidelines.md) — 编写与提交文档的强制规范。
+4. **User Guide**
+	- [`config.md`](user_guide/config.md) — 项目启动的可选配置
+5. **ChangeLog**
+
 
 > 说明：所有历史文档已迁移至 `trash/original_docs`，仅作归档用途。新提交必须遵循本目录列出的模板与规范。
