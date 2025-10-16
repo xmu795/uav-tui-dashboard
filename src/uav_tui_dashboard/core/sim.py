@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .base import DataSource
-from .models import UAVStatus, Vector3, VehicleState
+from .status import UAVStatus, Vector3, VehicleState
 
 logger = logging.getLogger(__name__)
 

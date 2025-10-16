@@ -7,7 +7,7 @@ import math
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from .models import UAVStatus, Vector3, VehicleState
+from .status import UAVStatus, Vector3, VehicleState
 
 logger = logging.getLogger(__name__)
 

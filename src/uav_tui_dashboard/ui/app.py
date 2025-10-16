@@ -14,7 +14,8 @@ from textual.timer import Timer
 from textual.widgets import Button, DataTable, Footer, Header, ListItem, ListView, Static
 
 from ..core import DataSource
-from ..core.models import FlightSnapshot, FlightSnapshotQueue, UAVStatus
+from ..core.snapshots import FlightSnapshot, FlightSnapshotQueue
+from ..core.status import UAVStatus
 
 logger = logging.getLogger(__name__)
 

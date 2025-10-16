@@ -1,7 +1,8 @@
 """Telemetry core primitives for the UAV TUI dashboard."""
 
 from .base import DataSource, VehicleStateParser
-from .models import FlightSnapshot, FlightSnapshotQueue, UAVStatus, Vector3, VehicleState
+from .snapshots import FlightSnapshot, FlightSnapshotQueue
+from .status import UAVStatus, Vector3, VehicleState
 from .parsers import (
     parse_battery_message,
     parse_odometry_message,

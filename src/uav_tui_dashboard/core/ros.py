@@ -10,7 +10,7 @@ import threading
 from typing import Any, Callable, Optional
 
 from .base import DataSource, VehicleStateParser
-from .models import UAVStatus, Vector3
+from .status import UAVStatus, Vector3
 from .parsers import (
     parse_battery_message,
     parse_odometry_message,

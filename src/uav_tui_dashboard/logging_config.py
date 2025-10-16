@@ -12,10 +12,7 @@ from typing import Any, Dict, Mapping, Optional
 
 from platformdirs import user_log_dir
 
-try:  # Python 3.11+
-    import tomllib  # type: ignore[attr-defined]
-except ModuleNotFoundError:  # pragma: no cover - fallback for Python<3.11
-    import tomli as tomllib  # type: ignore[no-redef]
+import tomli as tomllib  # type: ignore[no-redef]
 
 LOGGER = logging.getLogger(__name__)
 

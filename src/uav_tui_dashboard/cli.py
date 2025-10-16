@@ -9,11 +9,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Callable, Coroutine, Optional, Sequence
-
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomli as tomllib
 
 from .core import (
     DataSource,

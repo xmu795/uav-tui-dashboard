@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from uav_tui_dashboard.core.models import UAVStatus, VehicleState
+from uav_tui_dashboard.core.status import UAVStatus, VehicleState
 from uav_tui_dashboard.core.parsers import (
     parse_battery_message,
     parse_px4_pose_ned,

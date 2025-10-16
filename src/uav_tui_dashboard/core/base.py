@@ -5,7 +5,7 @@ from __future__ import annotations
 import abc
 from typing import Any, Callable
 
-from .models import UAVStatus, VehicleState
+from .status import UAVStatus, VehicleState
 
 
 class DataSource(abc.ABC):
